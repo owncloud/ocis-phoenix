@@ -38,6 +38,7 @@ func Server(opts ...Option) (http.Service, error) {
 				options.Logger,
 			),
 		),
+		svc.Registry(service.Service.Options().Registry),
 	)
 
 	{

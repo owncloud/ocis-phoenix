@@ -3,6 +3,7 @@ package svc
 import (
 	"net/http"
 
+	"github.com/micro/go-micro/registry"
 	"github.com/owncloud/ocis-phoenix/pkg/config"
 	"github.com/owncloud/ocis-pkg/log"
 )
@@ -15,6 +16,7 @@ type Options struct {
 	Logger     log.Logger
 	Config     *config.Config
 	Middleware []func(http.Handler) http.Handler
+	Registry   registry.Registry
 }
 
 // newOptions initializes the available default options.
@@ -46,5 +48,12 @@ func Config(val *config.Config) Option {
 func Middleware(val ...func(http.Handler) http.Handler) Option {
 	return func(o *Options) {
 		o.Middleware = val
+	}
+}
+
+// Registry provides a function to set the registry option.
+func Registry(val registry.Registry) Option {
+	return func(o *Options) {
+		o.Registry = val
 	}
 }
