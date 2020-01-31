@@ -1,6 +1,7 @@
 package svc
 
 import (
+	"context"
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
@@ -8,9 +9,12 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi"
+	"github.com/micro/go-micro"
 	"github.com/owncloud/ocis-phoenix/pkg/assets"
 	"github.com/owncloud/ocis-phoenix/pkg/config"
 	"github.com/owncloud/ocis-pkg/log"
+	"github.com/owncloud/ocis-pkg/oidc"
+	accounts "github.com/owncloud/ocis-accounts/pkg/proto/v0"
 )
 
 var (
@@ -57,7 +61,7 @@ func (p Phoenix) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	p.mux.ServeHTTP(w, r)
 }
 
-func (p Phoenix) getPayload() (payload []byte, err error) {
+func (p Phoenix) getPayload(ctx context.Context) (payload []byte, err error) {
 
 	if p.config.Phoenix.Path == "" {
 		// render dynamically using config
@@ -67,6 +71,34 @@ func (p Phoenix) getPayload() (payload []byte, err error) {
 		if len(p.config.Phoenix.Config.Apps) == 0 {
 			p.config.Phoenix.Config.Apps = make([]string, 0)
 		}
+
+
+		// we will never get claims here because the config is not auth protected, the bearer token is never parsed and the context never filled with the claims
+		claims := oidc.FromContext(ctx)
+
+		if claims != nil {
+			key := claims.Sub
+
+			// override theme if accounts services has a value
+			service := micro.NewService()
+			service.Init()
+
+			c := service.Client()
+
+			req := c.NewRequest("com.owncloud.accounts", "SettingsService.Get", &accounts.Query{
+				Key: key,
+			})
+			
+			rsp := &accounts.Record{}
+
+			if err := c.Call(ctx, req, rsp); err == nil {
+				if rsp.Payload.Phoenix.Theme != "" {
+					p.config.Phoenix.Config.Theme = rsp.Payload.Phoenix.Theme
+				}
+			} 
+			// TODO log error?
+		}
+		// TODO not logged in
 
 		return json.Marshal(p.config.Phoenix.Config)
 	}
@@ -95,7 +127,7 @@ func (p Phoenix) getPayload() (payload []byte, err error) {
 // Config implements the Service interface.
 func (p Phoenix) Config(w http.ResponseWriter, r *http.Request) {
 
-	payload, err := p.getPayload()
+	payload, err := p.getPayload(r.Context())
 	if err != nil {
 		http.Error(w, ErrConfigInvalid, http.StatusUnprocessableEntity)
 		return
