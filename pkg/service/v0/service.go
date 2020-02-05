@@ -114,14 +114,14 @@ func (p Phoenix) Static() http.HandlerFunc {
 		rootWithSlash = rootWithSlash + "/"
 	}
 
+	assetsFS := assets.New(
+		assets.Logger(p.logger),
+		assets.Config(p.config),
+	)
+
 	static := http.StripPrefix(
 		rootWithSlash,
-		http.FileServer(
-			assets.New(
-				assets.Logger(p.logger),
-				assets.Config(p.config),
-			),
-		),
+		http.FileServer(assetsFS),
 	)
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -142,6 +142,21 @@ func (p Phoenix) Static() http.HandlerFunc {
 				r,
 			)
 
+			return
+		}
+		// work around index.html handling
+		if strings.HasSuffix(r.URL.Path, "/index.html") {
+			f, err := assetsFS.Open("index.html")
+			if err != nil {
+				http.NotFound(
+					w,
+					r,
+				)
+
+				return
+			}
+			stat, _ := f.Stat()
+			http.ServeContent(w, r, "index.html", stat.ModTime(), f)
 			return
 		}
 
