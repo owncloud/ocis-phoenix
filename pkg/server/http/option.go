@@ -19,7 +19,6 @@ type Options struct {
 	Config    *config.Config
 	Metrics   *metrics.Metrics
 	Flags     []cli.Flag
-	Namespace string
 }
 
 // newOptions initializes the available default options.
@@ -65,12 +64,5 @@ func Metrics(val *metrics.Metrics) Option {
 func Flags(val []cli.Flag) Option {
 	return func(o *Options) {
 		o.Flags = append(o.Flags, val...)
-	}
-}
-
-// Namespace provides a function to set the Namespace option.
-func Namespace(val string) Option {
-	return func(o *Options) {
-		o.Namespace = val
 	}
 }
