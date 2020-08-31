@@ -36,6 +36,11 @@ type Asset struct {
 	Path string
 }
 
+// TokenManager is the config for using the reva token manager
+type TokenManager struct {
+	JWTSecret string
+}
+
 // PhoenixConfig defines the available phoenix configuration for a dynamically rendered config.json.
 type PhoenixConfig struct {
 	Server        string                 `json:"server,omitempty"`
@@ -84,14 +89,15 @@ type Phoenix struct {
 
 // Config combines all available configuration parts.
 type Config struct {
-	File    string
-	Log     Log
-	Debug   Debug
-	HTTP    HTTP
-	Tracing Tracing
-	Asset   Asset
-	OIDC    OIDC
-	Phoenix Phoenix
+	File         string
+	Log          Log
+	Debug        Debug
+	HTTP         HTTP
+	Tracing      Tracing
+	Asset        Asset
+	OIDC         OIDC
+	Phoenix      Phoenix
+	TokenManager TokenManager
 }
 
 // New initializes a new configuration with or without defaults.
