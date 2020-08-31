@@ -58,16 +58,20 @@ func (p Phoenix) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p Phoenix) getPayload() (payload []byte, err error) {
+	cfg := p.loadRawConfig()
+	return json.Marshal(cfg)
+}
 
+func (p Phoenix) loadRawConfig() *config.PhoenixConfig {
+	// render dynamically using config
 	if p.config.Phoenix.Path == "" {
-		// render dynamically using config
-
-		// provide default ocis-web options
+		// provide default options
 		if p.config.Phoenix.Config.Options == nil {
 			p.config.Phoenix.Config.Options = make(map[string]interface{})
 			p.config.Phoenix.Config.Options["hideSearchBar"] = true
 		}
 
+		// provide default external apps
 		if p.config.Phoenix.Config.ExternalApps == nil {
 			p.config.Phoenix.Config.ExternalApps = []config.ExternalApp{
 				{
@@ -87,26 +91,34 @@ func (p Phoenix) getPayload() (payload []byte, err error) {
 			p.config.Phoenix.Config.Apps = make([]string, 0)
 		}
 
-		return json.Marshal(p.config.Phoenix.Config)
+		return &p.config.Phoenix.Config
 	}
 
 	// try loading from file
-	if _, err = os.Stat(p.config.Phoenix.Path); os.IsNotExist(err) {
+	if _, err := os.Stat(p.config.Phoenix.Path); os.IsNotExist(err) {
 		p.logger.Fatal().
 			Err(err).
 			Str("config", p.config.Phoenix.Path).
 			Msg("phoenix config doesn't exist")
 	}
 
-	payload, err = ioutil.ReadFile(p.config.Phoenix.Path)
-
+	payload, err := ioutil.ReadFile(p.config.Phoenix.Path)
 	if err != nil {
 		p.logger.Fatal().
 			Err(err).
 			Str("config", p.config.Phoenix.Path).
 			Msg("failed to read custom config")
 	}
-	return
+
+	cfg := &config.PhoenixConfig{}
+	err = json.Unmarshal(payload, cfg)
+	if err != nil {
+		p.logger.Fatal().
+			Err(err).
+			Str("config", p.config.Phoenix.Path).
+			Msg("failed to parse custom config to json")
+	}
+	return cfg
 }
 
 // Config implements the Service interface.
