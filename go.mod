@@ -9,6 +9,7 @@ require (
 	github.com/UnnoTed/fileb0x v1.1.4
 	github.com/go-chi/chi v4.1.2+incompatible
 	github.com/go-playground/universal-translator v0.17.0 // indirect
+	github.com/jinzhu/copier v0.0.0-20190924061706-b57f9002281a // indirect
 	github.com/mholt/certmagic v0.9.1 // indirect
 	github.com/micro/cli/v2 v2.1.2
 	github.com/micro/go-micro v1.18.0 // indirect
@@ -26,3 +27,5 @@ require (
 )
 
 replace google.golang.org/grpc => google.golang.org/grpc v1.26.0
+
+replace github.com/owncloud/ocis-accounts => ../ocis-accounts

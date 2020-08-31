@@ -1,6 +1,7 @@
 package svc
 
 import (
+	"github.com/owncloud/ocis-pkg/v2/roles"
 	"net/http"
 
 	"github.com/owncloud/ocis-phoenix/pkg/config"
@@ -15,6 +16,7 @@ type Options struct {
 	Logger     log.Logger
 	Config     *config.Config
 	Middleware []func(http.Handler) http.Handler
+	RoleCache  *roles.Cache
 }
 
 // newOptions initializes the available default options.
@@ -46,5 +48,12 @@ func Config(val *config.Config) Option {
 func Middleware(val ...func(http.Handler) http.Handler) Option {
 	return func(o *Options) {
 		o.Middleware = val
+	}
+}
+
+// RoleCache provides a function to set the roles cache option.
+func RoleCache(val *roles.Cache) Option {
+	return func(o *Options) {
+		o.RoleCache = val
 	}
 }

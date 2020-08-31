@@ -1,6 +1,7 @@
 package svc
 
 import (
+	"context"
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
@@ -8,9 +9,13 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi"
+	"github.com/jinzhu/copier"
+	asvc "github.com/owncloud/ocis-accounts/pkg/service/v0"
 	"github.com/owncloud/ocis-phoenix/pkg/assets"
 	"github.com/owncloud/ocis-phoenix/pkg/config"
 	"github.com/owncloud/ocis-pkg/v2/log"
+	"github.com/owncloud/ocis-pkg/v2/middleware"
+	"github.com/owncloud/ocis-pkg/v2/roles"
 )
 
 var (
@@ -32,9 +37,10 @@ func NewService(opts ...Option) Service {
 	m.Use(options.Middleware...)
 
 	svc := Phoenix{
-		logger: options.Logger,
-		config: options.Config,
-		mux:    m,
+		logger:    options.Logger,
+		config:    options.Config,
+		mux:       m,
+		roleCache: options.RoleCache,
 	}
 
 	m.Route(options.Config.HTTP.Root, func(r chi.Router) {
@@ -47,9 +53,10 @@ func NewService(opts ...Option) Service {
 
 // Phoenix defines implements the business logic for Service.
 type Phoenix struct {
-	logger log.Logger
-	config *config.Config
-	mux    *chi.Mux
+	logger    log.Logger
+	config    *config.Config
+	mux       *chi.Mux
+	roleCache *roles.Cache
 }
 
 // ServeHTTP implements the Service interface.
@@ -57,9 +64,29 @@ func (p Phoenix) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	p.mux.ServeHTTP(w, r)
 }
 
-func (p Phoenix) getPayload() (payload []byte, err error) {
+func (p Phoenix) getPayload(ctx context.Context) (payload []byte, err error) {
 	cfg := p.loadRawConfig()
-	return json.Marshal(cfg)
+	cfgCopy := &config.PhoenixConfig{}
+	err = copier.Copy(cfgCopy, cfg)
+	if err != nil {
+		p.logger.Error().Err(err).Msg("failed to make a deep copy of the config")
+	}
+	p.filterExternalApps(ctx, cfgCopy)
+	return json.Marshal(cfgCopy)
+}
+
+func (p Phoenix) filterExternalApps(ctx context.Context, cfg *config.PhoenixConfig) {
+	if !p.hasAccountManagementPermissions(ctx) {
+		apps := make([]config.ExternalApp, 0)
+		for _, app := range cfg.ExternalApps {
+			if app.ID != "accounts" {
+				apps = append(apps, app)
+			}
+		}
+		if len(apps) != len(cfg.ExternalApps) {
+			cfg.ExternalApps = apps
+		}
+	}
 }
 
 func (p Phoenix) loadRawConfig() *config.PhoenixConfig {
@@ -124,7 +151,7 @@ func (p Phoenix) loadRawConfig() *config.PhoenixConfig {
 // Config implements the Service interface.
 func (p Phoenix) Config(w http.ResponseWriter, r *http.Request) {
 
-	payload, err := p.getPayload()
+	payload, err := p.getPayload(r.Context())
 	if err != nil {
 		http.Error(w, ErrConfigInvalid, http.StatusUnprocessableEntity)
 		return
@@ -153,7 +180,7 @@ func (p Phoenix) Static() http.HandlerFunc {
 		),
 	)
 
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
 		if rootWithSlash != "/" && r.URL.Path == p.config.HTTP.Root {
 			http.Redirect(
 				w,
@@ -175,5 +202,17 @@ func (p Phoenix) Static() http.HandlerFunc {
 		}
 
 		static.ServeHTTP(w, r)
-	})
+	}
+}
+
+func (p Phoenix) hasAccountManagementPermissions(ctx context.Context) bool {
+	// get roles from context
+	roleIDs, ok := middleware.ReadRoleIDsFromContext(ctx)
+	if !ok {
+		// if there were no roleIDs the request was not authenticated or didn't go through ocis-proxy
+		return false
+	}
+
+	// check if permission is present in roles of the authenticated account
+	return p.roleCache.FindPermissionByID(roleIDs, asvc.AccountManagementPermissionID) != nil
 }
